@@ -1,7 +1,8 @@
 #include <iostream>
 #include <string>
+#include <unistd.h>
 
-#include "AI.h"
+#include "AlphaBeta.h"
 #include "Player.h"
 
 enum class Command {
@@ -29,7 +30,7 @@ Command parseCommand(const std::string &cmd)
 int main()
 {
 	Player player;
-	AI ai;
+	AlphaBeta ai;
 	player.setAI(&ai);
 
 	std::string cmd;
@@ -55,7 +56,6 @@ int main()
 				response = player.gen_move();
 				break;
 			case Command::Invalid:
-				std::cerr << "Invalid command" << std::endl;
 				return EXIT_SUCCESS;
 		}
 

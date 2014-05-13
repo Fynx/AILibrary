@@ -3,17 +3,23 @@
 
 #include <array>
 #include <unordered_map>
+#include <iostream>
+
+/**
+ * \struct State
+ */
 
 struct State {
-	State(int v = 0);
+	State(int v = 0) : value(v) {}
 
 	static inline int get_mask(int m);
 
-	int & operator=(int v);
+	inline void operator=(int v);
+	inline void operator|=(int v);
 
-	void move(int m);
-	void undo(int m);
-	bool can_move(int m);
+	inline void move(int m);
+	inline void undo(int m);
+	inline bool can_move(int m) const;
 
 	int value;
 };
@@ -23,11 +29,41 @@ inline int State::get_mask(int m)
 	return (1 << m);
 }
 
+inline void State::operator=(int v)
+{
+	value = v;
+}
+
+inline void State::operator|=(int v)
+{
+	value |= v;
+}
+
+inline void State::move(int m)
+{
+	value |= get_mask(m);
+}
+
+inline void State::undo(int m)
+{
+	value &= (~get_mask(m));
+}
+
+inline bool State::can_move(int m) const
+{
+	return !(value & get_mask(m));
+}
+
+/**
+ * \struct Point
+ */
+
 struct Point {
 	Point() {};
 	Point(int x, int y) : x(x), y(y) {}
 
 	inline Point & operator+=(Point p);
+	inline Point operator+(Point p);
 
 	int x, y;
 };
@@ -38,6 +74,15 @@ Point & Point::operator+=(Point p)
 	y += p.y;
 	return *this;
 }
+
+Point Point::operator+(Point p)
+{
+	return {x + p.x, y + p.y};
+}
+
+/**
+ * \namespace Direction
+ */
 
 namespace Direction {
 	const int RR = 0;

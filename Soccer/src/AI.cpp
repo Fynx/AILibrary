@@ -30,26 +30,27 @@ void AI::set_board_size(int w, int h)
 
 	for (int i = 0; i < w; ++i) {
 		if (i < w / 2 - 1 || i > w / 2 + 1) {
-			field(i, 1)     = lower_wall;
-			field(i, h - 2) = upper_wall;
+			field(i, 1)     |= lower_wall;
+			field(i, h - 2) |= upper_wall;
 		}
 	}
 
 	for (int i = 1; i < h - 1; ++i) {
-		field(0, i)     = left_wall;
-		field(w - 1, i) = right_wall;
+		field(0, i)     |= left_wall;
+		field(w - 1, i) |= right_wall;
 	}
 
-	field(w / 2 - 1, 1)     = Direction::LL_M | Direction::DL_M | Direction::DD_M;
-	field(w / 2 + 1, 1)     = Direction::RR_M | Direction::DR_M | Direction::DD_M;
-	field(w / 2 - 1, h - 2) = Direction::LL_M | Direction::UL_M | Direction::UU_M;
-	field(w / 2 + 1, h - 2) = Direction::RR_M | Direction::UR_M | Direction::UU_M;
+	field(w / 2 - 1, 1)     |= Direction::LL_M | Direction::DL_M | Direction::DD_M;
+	field(w / 2 + 1, 1)     |= Direction::RR_M | Direction::DR_M | Direction::DD_M;
+	field(w / 2 - 1, h - 2) |= Direction::LL_M | Direction::UL_M | Direction::UU_M;
+	field(w / 2 + 1, h - 2) |= Direction::RR_M | Direction::UR_M | Direction::UU_M;
 
 
 	current_field = Point(w / 2, h / 2);
 
 	/** Debug */
 
+	/*
 	std::cerr << "Board:\n";
 	for (int i = h - 1; i >= 0; --i) {
 		for (int j = 0; j < w; ++j) {
@@ -67,6 +68,16 @@ void AI::set_board_size(int w, int h)
 		std::cerr << "\n";
 	}
 	std::cerr << "\n";
+	for (int i = 0; i < h; ++i) {
+		for (int j = 0; j < w; ++j) {
+			std::cerr << "point " << j << ", " << i << ": ";
+			for (int d : Direction::all)
+				if (field(j, i).can_move(d))
+					std::cerr << d << " ";
+			std::cerr << std::endl;
+		}
+	}
+	std::cerr << "\n";*/
 }
 
 void AI::set_time_left(int t)
@@ -81,19 +92,23 @@ void AI::make_move(int move)
 	field(current_field).move(Direction::reversed(move));
 }
 
+void AI::undo_move(int move)
+{
+	field(current_field).undo(Direction::reversed(move));
+	current_field += Direction::change.at(Direction::reversed(move));
+	field(current_field).undo(move);
+}
+
 int AI::get_move()
 {
-	return Direction::UU;
-}
-
-State & AI::field(Point point)
-{
-	return fields[point.y * width + point.x];
-}
-
-State & AI::field(int x, int y)
-{
-	return fields[y * width + x];
+	for (int d : Direction::all) {
+		if (move_possible((d + 1) % 8)) {
+			make_move(d + 1);
+			return d + 1;
+		}
+	}
+	std::cerr << "No move available" << std::endl;
+	exit(EXIT_SUCCESS);
 }
 
 

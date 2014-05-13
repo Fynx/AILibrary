@@ -1,4 +1,5 @@
 #include "Player.h"
+#include <iostream>
 
 static const std::string Response = std::string("=");
 
