@@ -9,10 +9,11 @@ class AI
 public:
 	AI();
 
-	void set_board_size(int w, int h);
+	virtual void set_board_size(int w, int h);
 	void set_time_left(int t);
-	void make_move(int move);
-	void undo_move(int move);
+
+	virtual void make_move(int move);
+	virtual void undo_move(int move);
 	virtual int get_move();
 
 protected:
