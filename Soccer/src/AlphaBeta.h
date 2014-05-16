@@ -10,6 +10,7 @@ class AlphaBeta : public AI
 {
 public:
 	AlphaBeta();
+	~AlphaBeta();
 
 	virtual void set_board_size(int w, int h);
 
@@ -19,12 +20,15 @@ public:
 
 private:
 	static const int INF                      = 10000;
-	static const int MAX_DEPTH                = 8;
-	static const int TRANSPOSITION_TABLE_SIZE = 1048576 / 4;
+	static const int MAX_DEPTH                = 15;
+	static const int TRANSPOSITION_TABLE_SIZE = 33554432;
 
 	bool player_changes(int d);
 	int field_value(const Point &field);
+
 	int alpha_beta_recursive(int alpha, int beta, bool player, int depth);
+	int greedy_search(bool player);
+	int any_move();
 
 	Hash current_hash;
 
@@ -44,8 +48,9 @@ private:
 		int best_move;
 		int8_t precision;
 	};
-	Data transposition_table[TRANSPOSITION_TABLE_SIZE];
+	Data *transposition_table;
 
+	void clear_table();
 	static inline void insert_data(Data &data, int alpha, int beta, int value, int best_move, int precision);
 };
 
