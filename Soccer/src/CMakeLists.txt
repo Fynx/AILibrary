@@ -1,6 +1,7 @@
 set (Soccer_SRCS
 	AI.cpp
 	AlphaBeta.cpp
+	DangerousAlphaBeta.cpp
 	main.cpp
 	Player.cpp
 )

@@ -3,7 +3,10 @@
 #include <unistd.h>
 
 #include "AlphaBeta.h"
+#include "DangerousAlphaBeta.h"
 #include "Player.h"
+
+#define DANGEROUS
 
 enum class Command {
 	BoardSize,
@@ -30,8 +33,15 @@ Command parseCommand(const std::string &cmd)
 int main()
 {
 	Player player;
-	AlphaBeta ai;
-	player.setAI(&ai);
+	AI *ai;
+
+#ifdef DANGEROUS
+	ai = new DangerousAlphaBeta();
+#else
+	ai = new AlphaBeta();
+#endif
+
+	player.setAI(ai);
 
 	std::string cmd;
 	std::string response;
