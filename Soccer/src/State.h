@@ -20,6 +20,7 @@ struct State {
 	inline void move(int m);
 	inline void undo(int m);
 	inline bool can_move(int m) const;
+	inline bool is_full() const;
 
 	int value;
 };
@@ -52,6 +53,11 @@ inline void State::undo(int m)
 inline bool State::can_move(int m) const
 {
 	return !(value & get_mask(m));
+}
+
+inline bool State::is_full() const
+{
+	return (value & 255) == 255;
 }
 
 /**
