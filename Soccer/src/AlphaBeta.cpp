@@ -4,6 +4,15 @@
 #include <ctime>
 #include <limits>
 
+/**
+ * Level
+ * 1 - basic alphabeta
+ * 2 - time-adaptive depth
+ * 3 - full alphabeta with transposition table, negascout and shallow search
+ */
+
+#define LEVEL 3
+
 #define DEBUGMODE
 
 #ifdef DEBUGMODE
@@ -69,56 +78,48 @@ void AlphaBeta::undo_move(int move)
 
 int AlphaBeta::get_move()
 {
-	/** Clean the transposition table */
+	int depth;
+	int best_move;
 
-	//NO CLEANING
+#if LEVEL > 1
+	depth = get_depth_adaptive();
+#else
+	depth = get_depth_const();
+#endif
 
-	/** Find optimal depth depending on time left */
+#if LEVEL > 2
+	/** First searching with smaller window, with smaller depth */
+	nega_scout_for_win(depth);
+	shallow_search(depth);
+	small_window_search(depth);
 
-	int depth = get_depth_const();
-DEBUG
-	std::cerr << "setting depth to: " << depth << "\n";
+	best_move = get_current_data().best_move;
 
-	/** Try to find winning move */
-
-	alpha_beta_recursive(height - 1, height - 1, true, depth);
-
-	/** Try to find best move with the greatest number of cuts */
-
-	alpha_beta_recursive(0, height, true, depth - 2);
-
-	/** Try to find alpha-beta value in smaller window */
-
-	static int window          = 3;
-	static int estimated_value = (current_field.y + 2);
-
-	alpha_beta_recursive(estimated_value - window, estimated_value + window, true, depth);
-
-	/** If this fails, widen the window */
-
-	Data data = get_current_data();
-	if (data.value > data.beta || data.value < data.alpha)
-		alpha_beta_recursive(0, height - 1, true, depth);
-
-	/** Make the best move */
-
-	data = get_current_data();
-	int best_move = data.best_move;
-
-	/** If every position is losing or there is a hash problem, try shallow search */
-
-	if (best_move == -1 || best_move == 0 || data.hash != current_hash || !move_possible(best_move)) {
-		clear_table();
-		alpha_beta_recursive(0, height - 1, true, depth - 3);
-		data = get_current_data();
-		best_move = data.best_move;
+	/** When small window isn't enough */
+	if (get_current_data().value > get_current_data().beta ||
+	    get_current_data().value < get_current_data().alpha) {
+		full_search(depth);
+		best_move = get_current_data().best_move;
 	}
 
-	if (best_move == -1 || best_move == 0 || data.hash != current_hash)
-		best_move = any_move();
+	/** In case something wicked happens */
+	if (best_move == -1 || !move_possible(best_move)) {
+		clear_table();
+		shallow_search(depth);
+		best_move = get_current_data().best_move;
+	}
+#else
+	simple_search(depth);
+	best_move = get_current_data().best_move;
+#endif
+	/** In case something Very Wicked happens */
+	if (best_move == -1) {
+		funny_search();
+		best_move = get_current_data().best_move;
+	}
 
 DEBUG
-	std::cerr << "best move: " << best_move << " (value=" << data.value << ")\n";
+	std::cerr << "best move: " << best_move << " (value=" << get_current_data().value << ")\n";
 
 	make_move(best_move);
 
@@ -130,15 +131,80 @@ bool AlphaBeta::player_changes(int d)
 	return field(current_field + Direction::change.at(d)).value == 0;
 }
 
-int AlphaBeta::field_value(const Point &field)
+void AlphaBeta::nega_scout_for_win(int depth)
 {
-	return field.y;
+DEBUG
+	std::cerr << "Nega scout (depth=" << depth << ")\n";
+
+	alpha_beta_recursive_with_tr(height - 1, height - 1, true, depth);
 }
 
-int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
+void AlphaBeta::shallow_search(int depth)
 {
-	if (field(current_field).is_full())
-		return (int) !player * INF;
+	depth -= 2;
+DEBUG
+	std::cerr << "Shallow search (depth=" << depth << ")\n";
+
+	alpha_beta_recursive_with_tr(0, height, true, depth);
+}
+
+void AlphaBeta::small_window_search(int depth)
+{
+DEBUG
+	std::cerr << "Small window search (depth=" << depth << ")\n";
+
+	static int window          = 3;
+	static int estimated_value = (current_field.y + 2);
+
+	alpha_beta_recursive_with_tr(estimated_value - window, estimated_value + window, true, depth);
+}
+
+void AlphaBeta::full_search(int depth)
+{
+DEBUG
+	std::cerr << "Full search (depth=" << depth << ")\n";
+
+	alpha_beta_recursive_with_tr(0, INF, true, depth);
+}
+
+void AlphaBeta::simple_search(int depth)
+{
+	depth -= 5;
+DEBUG
+	std::cerr << "Simple search (depth=" << depth << ")\n";
+
+	int best_move   = -1;
+	int best_result = 0;
+	bool change;
+
+	for (int d : Direction::all) {
+		if (move_possible(d)) {
+			change = player_changes(d);
+
+			make_move(d);
+			int current_result = alpha_beta_recursive(0, INF, !change, depth);
+			if (current_result > best_result) {
+				best_result = current_result;
+				best_move = d;
+			}
+			undo_move(d);
+		}
+	}
+	insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
+	            0, INF, best_result, best_move, current_hash, depth);
+}
+
+void AlphaBeta::funny_search()
+{
+DEBUG
+	std::cerr << "Funny search\n";
+
+	insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
+	            0, INF, 0, any_move(), current_hash, 0);
+}
+
+int AlphaBeta::alpha_beta_recursive_with_tr(int alpha, int beta, bool player, int depth)
+{
 	if (current_field.y == 0 || current_field.y == height - 1 || depth == 0)
 		return field_value(current_field);
 
@@ -158,7 +224,7 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 		change = player_changes(best);
 
 		make_move(best);
-		r = alpha_beta_recursive(alpha, beta, player ^ change, depth - 1);
+		r = alpha_beta_recursive_with_tr(alpha, beta, player ^ change, depth - 1);
 		undo_move(best);
 	} else if (player) {
 		r = 0;
@@ -172,7 +238,7 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 				change = player_changes(d);
 
 				make_move(d);
-				x = alpha_beta_recursive(std::max(alpha, r), beta, player ^ change, depth - 1);
+				x = alpha_beta_recursive_with_tr(std::max(alpha, r), beta, player ^ change, depth - 1);
 				undo_move(d);
 
 				if (x >= beta) {
@@ -192,7 +258,7 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 				change = player_changes(d);
 
 				make_move(d);
-				x = alpha_beta_recursive(alpha, std::min(beta, r), player ^ change, depth - 1);
+				x = alpha_beta_recursive_with_tr(alpha, std::min(beta, r), player ^ change, depth - 1);
 				undo_move(d);
 
 				if (x <= alpha) {
@@ -208,7 +274,53 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 		}
 	}
 
-	insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE], alpha, beta, r, best, current_hash, depth);
+	insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
+	            alpha, beta, r, best, current_hash, depth);
+	return r;
+}
+
+int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
+{
+	if (current_field.y == 0 || current_field.y == height - 1 || depth == 0)
+		return field_value(current_field);
+
+	bool change;
+	int r, x;
+
+	if (player) {
+		r = 0;
+		for (int d : Direction::all) {
+			if (move_possible(d)) {
+				change = player_changes(d);
+
+				make_move(d);
+				x = alpha_beta_recursive(std::max(alpha, r), beta, player ^ change, depth - 1);
+				undo_move(d);
+
+				if (x >= beta)
+					return x;
+				if (x > r)
+					r = x;
+			}
+		}
+	} else {
+		r = INF;
+		for (int d : Direction::all) {
+			if (move_possible(d)) {
+				change = player_changes(d);
+
+				make_move(d);
+				x = alpha_beta_recursive(alpha, std::min(beta, r), player ^ change, depth - 1);
+				undo_move(d);
+
+				if (x <= alpha)
+					return x;
+				if (x < r)
+					r = x;
+			}
+		}
+	}
+
 	return r;
 }
 
@@ -261,8 +373,6 @@ int AlphaBeta::any_move()
 	for (int i = 0; i < d; ++i)
 		if (move_possible(i))
 			return i;
-DEBUG
-	std::cerr << "No move possible.\n";
 
 	return -1;
 }
@@ -292,9 +402,6 @@ int AlphaBeta::get_depth_adaptive() const
 {
 	static const int AVERAGE_MOVES_NUMBER  = (width - 2) * (height - 2) * 2;
 	static const int AVERAGE_TIME_FOR_MOVE = time_left / AVERAGE_MOVES_NUMBER;
-
-DEBUG
-	std::cerr << "time_left: " << time_left << "\n";
 
 	static int move_counter      = 0;
 	static int thr_previous_time = 0;

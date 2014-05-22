@@ -20,12 +20,20 @@ public:
 
 private:
 	static const int INF                      = 10000;
-	static const int MAX_DEPTH                = 15;
+	static const int MAX_DEPTH                = 18;
 	static const int TRANSPOSITION_TABLE_SIZE = 16777216;
 
 	bool player_changes(int d);
-	int field_value(const Point &field);
+	inline int field_value(const Point &field);
 
+	void nega_scout_for_win(int depth);
+	void shallow_search(int depth);
+	void small_window_search(int depth);
+	void full_search(int depth);
+	void simple_search(int depth);
+	void funny_search();
+
+	int alpha_beta_recursive_with_tr(int alpha, int beta, bool player, int depth);
 	int alpha_beta_recursive(int alpha, int beta, bool player, int depth);
 	int greedy_search(bool player);
 	int any_move();
@@ -61,6 +69,11 @@ private:
 	inline Data get_current_data() const;
 	static inline void insert_data(Data &data, int alpha, int beta, int value, int best_move, Hash hash, int precision);
 };
+
+inline int AlphaBeta::field_value(const Point &field)
+{
+	return field.y;
+}
 
 inline AlphaBeta::Data AlphaBeta::get_current_data() const
 {
