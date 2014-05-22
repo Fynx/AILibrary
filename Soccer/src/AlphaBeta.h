@@ -1,8 +1,10 @@
 #ifndef ALPHABETA_H
 #define ALPHABETA_H
 
-#include "AI.h"
+#include <iostream>
 #include <vector>
+
+#include "AI.h"
 
 typedef uint64_t Hash;
 
@@ -20,7 +22,7 @@ public:
 
 private:
 	static const int INF                      = 10000;
-	static const int MAX_DEPTH                = 18;
+	static const int MAX_DEPTH                = 15;
 	static const int TRANSPOSITION_TABLE_SIZE = 16777216;
 
 	bool player_changes(int d);
@@ -52,22 +54,22 @@ private:
 
 	struct Data {
 		Data() :
-			alpha(INF), beta(0), value(-1), best_move(-1), hash(0), precision(-1) {}
-		Data(int alpha, int beta, int value, int best_move, Hash hash, int8_t p) :
-			alpha(alpha), beta(beta), value(0), best_move(best_move), hash(hash), precision(p) {}
+			alpha(INF), beta(0), value(-1), best_move(-1), precision(-1), hash(0) {}
+		Data(int alpha, int beta, int value, int8_t best_move, int8_t p, Hash hash) :
+			alpha(alpha), beta(beta), value(0), best_move(best_move), precision(p), hash(hash) {}
 
 		int alpha;
 		int beta;
 		int value;
-		int best_move;
-		Hash hash;
+		int8_t best_move;
 		int8_t precision;
+		Hash hash;
 	};
 	Data *transposition_table;
 
 	void clear_table();
 	inline Data get_current_data() const;
-	static inline void insert_data(Data &data, int alpha, int beta, int value, int best_move, Hash hash, int precision);
+	static inline void insert_data(Data &data, int alpha, int beta, int value, int best_move, int precision, Hash hash);
 };
 
 inline int AlphaBeta::field_value(const Point &field)
@@ -77,7 +79,7 @@ inline int AlphaBeta::field_value(const Point &field)
 
 inline AlphaBeta::Data AlphaBeta::get_current_data() const
 {
-	Data d = transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE];
+	Data &d = transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE];
 	if (d.hash == current_hash)
 		return d;
 	else
@@ -85,14 +87,14 @@ inline AlphaBeta::Data AlphaBeta::get_current_data() const
 }
 
 /** Why the hell I need this...? */
-inline void AlphaBeta::insert_data(Data &data, int alpha, int beta, int value, int best_move, Hash hash, int precision)
+inline void AlphaBeta::insert_data(Data &data, int alpha, int beta, int value, int best_move, int precision, Hash hash)
 {
-	data.alpha = alpha;
-	data.beta  = beta;
-	data.value = value;
+	data.alpha     = alpha;
+	data.beta      = beta;
+	data.value     = value;
 	data.best_move = best_move;
-	data.hash      = hash;
 	data.precision = precision;
+	data.hash      = hash;
 }
 
 #endif // ALPHABETA_H

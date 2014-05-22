@@ -13,7 +13,7 @@
 
 #define LEVEL 3
 
-#define DEBUGMODE
+// #define DEBUGMODE
 
 #ifdef DEBUGMODE
 static const int _debug = true;
@@ -103,7 +103,7 @@ int AlphaBeta::get_move()
 	}
 
 	/** In case something wicked happens */
-	if (best_move == -1 || !move_possible(best_move)) {
+	if (best_move == -1) {
 		clear_table();
 		shallow_search(depth);
 		best_move = get_current_data().best_move;
@@ -137,6 +137,18 @@ DEBUG
 	std::cerr << "Nega scout (depth=" << depth << ")\n";
 
 	alpha_beta_recursive_with_tr(height - 1, height - 1, true, depth);
+
+	/*Point p = current_field;
+	Hash h  = current_array_hash;
+	while (p.y < height - 1) {
+		std::cerr << "[" << p.x << ", " << p.y << "]\n";
+		int move = transposition_table[h % TRANSPOSITION_TABLE_SIZE].best_move;
+		h ^= get_hash_zobrist(move, p);
+		p.x = p.x + Direction::change.at(move).x;
+		p.y = p.y + Direction::change.at(move).y;
+		h ^= get_hash_zobrist(Direction::reversed(move), p);
+	}
+	std::cerr << "[" << p.x << ", " << p.y << "]\n";*/
 }
 
 void AlphaBeta::shallow_search(int depth)
@@ -191,7 +203,7 @@ DEBUG
 		}
 	}
 	insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
-	            0, INF, best_result, best_move, current_hash, depth);
+	            0, INF, best_result, best_move, depth, current_hash);
 }
 
 void AlphaBeta::funny_search()
@@ -200,19 +212,22 @@ DEBUG
 	std::cerr << "Funny search\n";
 
 	insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
-	            0, INF, 0, any_move(), current_hash, 0);
+	            0, INF, 0, any_move(), 0, current_hash);
 }
 
 int AlphaBeta::alpha_beta_recursive_with_tr(int alpha, int beta, bool player, int depth)
 {
-	if (current_field.y == 0 || current_field.y == height - 1 || depth == 0)
+DEBUG
+	std::cerr << ": " << depth << " [" << current_field.x << ", " << current_field.y << "]\n";
+
+	if (current_field.y == 0 || current_field.y == height - 1 || depth == 0) {
+DEBUG
+		std::cerr << "instant return: " << field_value(current_field) << "\n";
 		return field_value(current_field);
+	}
 
 	Data data = get_current_data();
-	if (data.precision >= depth && data.hash == current_hash &&
-		((data.value <= data.beta && data.value >= data.alpha)
-		|| (data.value >= data.beta  && data.beta >= beta)
-		|| (data.value <= data.alpha && data.alpha <= alpha)))
+	if (data.precision >= depth)
 		return data.value;
 
 	int x;
@@ -226,10 +241,19 @@ int AlphaBeta::alpha_beta_recursive_with_tr(int alpha, int beta, bool player, in
 		make_move(best);
 		r = alpha_beta_recursive_with_tr(alpha, beta, player ^ change, depth - 1);
 		undo_move(best);
-	} else if (player) {
-		r = 0;
+
+		if (player && r >= beta) {
+			insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
+			            alpha, beta, r, best, depth, current_hash);
+			return r;
+		} else if (!player && r <= alpha) {
+			insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
+			            alpha, beta, r, best, depth, current_hash);
+			return r;
+		}
+
 	} else {
-		r = INF;
+		r = INF * (int) !player;
 	}
 
 	if (player) {
@@ -240,12 +264,18 @@ int AlphaBeta::alpha_beta_recursive_with_tr(int alpha, int beta, bool player, in
 				make_move(d);
 				x = alpha_beta_recursive_with_tr(std::max(alpha, r), beta, player ^ change, depth - 1);
 				undo_move(d);
+DEBUG
+					std::cerr << "ab: " << alpha << " " << beta << " = " << x << " (" << depth
+						<< ") [" << current_field.x << ", " << current_field.y << "]\n";
 
 				if (x >= beta) {
 					insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
-					            alpha, beta, x, d, current_hash, depth);
+					            alpha, beta, x, d, depth, current_hash);
+DEBUG
+					std::cerr << "beta cut: " << x << " [" << current_field.x << ", " << current_field.y << "]\n";
 					return x;
 				}
+
 				if (x > r) {
 					r = x;
 					best = d;
@@ -260,12 +290,18 @@ int AlphaBeta::alpha_beta_recursive_with_tr(int alpha, int beta, bool player, in
 				make_move(d);
 				x = alpha_beta_recursive_with_tr(alpha, std::min(beta, r), player ^ change, depth - 1);
 				undo_move(d);
+DEBUG
+					std::cerr << "ba: " << alpha << " " << beta << " = " << x << " (" << depth
+						<< ") [" << current_field.x << ", " << current_field.y << "]\n";
 
 				if (x <= alpha) {
 					insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
-					            alpha, beta, x, d, current_hash, depth);
+					            alpha, beta, x, d, depth, current_hash);
+DEBUG
+					std::cerr << "alpha cut: " << x << " [" << current_field.x << ", " << current_field.y << "]\n";
 					return x;
 				}
+
 				if (x < r) {
 					r = x;
 					best = d;
@@ -275,7 +311,7 @@ int AlphaBeta::alpha_beta_recursive_with_tr(int alpha, int beta, bool player, in
 	}
 
 	insert_data(transposition_table[current_array_hash % TRANSPOSITION_TABLE_SIZE],
-	            alpha, beta, r, best, current_hash, depth);
+	            alpha, beta, r, best, depth, current_hash);
 	return r;
 }
 
@@ -388,7 +424,7 @@ int AlphaBeta::get_depth_non_adaptive() const
 	int depth = MAX_DEPTH - (int) CTR_DIV + (int) ctr;
 	++move_counter;
 
-	static const int BEGINNING_MOVES_NUMBER   = 5;
+	static const int BEGINNING_MOVES_NUMBER = 5;
 
 	if (move_counter > BEGINNING_MOVES_NUMBER && move_counter < AVERAGE_MOVES_NUMBER)
 		while (time_left / ((double) AVERAGE_MOVES_NUMBER - (double) move_counter) >
@@ -409,7 +445,7 @@ int AlphaBeta::get_depth_adaptive() const
 	static int previous_time     = 0;
 	static int time_passed       = 0;
 
-	static int depth = MAX_DEPTH;
+	static int depth = MAX_DEPTH - 6;
 
 	++move_counter;
 	time_passed += previous_time - time_left;
@@ -447,5 +483,5 @@ Hash AlphaBeta::get_hash_zobrist(int d, const Point &p)
 void AlphaBeta::clear_table()
 {
 	for (int i = 0; i < TRANSPOSITION_TABLE_SIZE; ++i)
-		insert_data(transposition_table[i], 0, INF, -1, -1, (Hash) 0, -1);
+		insert_data(transposition_table[i], 0, INF, -1, -1, -1, (Hash) 0);
 }

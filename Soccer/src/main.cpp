@@ -6,7 +6,7 @@
 #include "DangerousAlphaBeta.h"
 #include "Player.h"
 
-#define DANGEROUS
+// #define DANGEROUS
 
 enum class Command {
 	BoardSize,
