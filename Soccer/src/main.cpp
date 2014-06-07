@@ -3,10 +3,7 @@
 #include <unistd.h>
 
 #include "AlphaBeta.h"
-#include "DangerousAlphaBeta.h"
 #include "Player.h"
-
-// #define DANGEROUS
 
 enum class Command {
 	BoardSize,
@@ -35,11 +32,7 @@ int main()
 	Player player;
 	AI *ai;
 
-#ifdef DANGEROUS
-	ai = new DangerousAlphaBeta();
-#else
 	ai = new AlphaBeta();
-#endif
 
 	player.setAI(ai);
 
