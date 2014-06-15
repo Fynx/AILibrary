@@ -52,21 +52,21 @@ int AlphaBeta::get_move()
 
 	++move_counter;
 
-	int depth = get_depth();
+	int8_t depth = get_depth();
 
 	if (move_counter < 5)
 		depth -= 4;
 
-	alpha_beta_recursive(0, height, true, depth - 3);
+	nega_scout(0, height, true, depth - 3);
 
-	alpha_beta_recursive(current_field.y, current_field.y + 2, true, depth);
+	nega_scout(current_field.y, current_field.y + 2, true, depth);
 
-	data = transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE];
+	data = get_current_state();
 	if (data.value < data.alpha || data.value > data.beta)
-		alpha_beta_with_nega_scout(0, height, true, depth);
+		nega_scout(0, height, true, depth);
 
-	data = transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE];
-	int best_move = data.best_move;
+	data = get_current_state();
+	int8_t best_move = data.best_move;
 
 	if (best_move == -1 || !move_possible(best_move))
 		best_move = any_move();
@@ -76,79 +76,78 @@ int AlphaBeta::get_move()
 	return best_move;
 }
 
-int AlphaBeta::get_depth()
+int8_t AlphaBeta::get_depth()
 {
 	return MAX_DEPTH;
 }
 
-bool AlphaBeta::player_changes(int d)
+bool AlphaBeta::player_changes(int8_t d)
 {
 	return field(current_field + Direction::change.at(d)).value == 0;
 }
 
-static inline int max(int a, int b)
+static inline int8_t max(int8_t a, int8_t b)
 {
 	return a > b ? a : b;
 }
 
-static inline int min(int a, int b)
+static inline int8_t min(int8_t a, int8_t b)
 {
 	return a < b ? a : b;
 }
 
-int AlphaBeta::alpha_beta_with_nega_scout(int alpha, int beta, bool player, int depth)
+int8_t AlphaBeta::nega_scout(int8_t alpha, int8_t beta, bool player, int8_t depth)
 {
 	if (current_field.y == 0 || current_field.y == height - 1 || depth == 0)
 		return field_value(current_field);
 
-	Data data = transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE];
-	if (data.hash == current_hash && data.precision >= depth - 1 &&
-	  ((data.value <= data.beta && data.value >= data.alpha) ||
-	   (data.value > data.beta  && data.beta >= beta) ||
-	   (data.value < data.alpha && data.alpha <= alpha)))
+	Data data = get_current_state();
+	if (data.precision >= depth - 1 && data.value <= data.beta && data.value >= data.alpha)
 		return data.value;
 
-	int x;
+	int8_t x;
 	bool change;
 
-	int r    = (int) !player * INF;
-	int best = data.best_move;
+	int8_t r    = (int8_t) !player * INF;
+	int8_t best = data.best_move;
 
 	if (best >= 0 && move_possible(best)) {
 		change = player_changes(best);
 
 		make_move(best);
-		r = alpha_beta_recursive(alpha * (int) player + beta * (int) !player,
-		                         alpha * (int) player + beta * (int) !player, player ^ change, depth - 1);
+		r = nega_scout(
+			alpha * (int8_t) !player + beta * (int8_t) player,
+			alpha * (int8_t) !player + beta * (int8_t) player, player ^ change, depth - 1);
 		undo_move(best);
 
+// 		if (r >= alpha * (int8_t) !player + beta * (int8_t) player && r <= alpha * (int8_t) !player + beta * (int8_t) player) {
+// 			set_current_state({r, alpha, beta, best, depth, current_hash});
+// 			return r;
+// 		}
 		if (player) {
 			if (r >= beta) {
-				transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-					Data(r, alpha, beta, best, depth, current_hash);
+				set_current_state({r, alpha, beta, best, depth, current_hash});
 				return r;
 			}
 		} else {
 			if (r <= alpha) {
-				transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-					Data(r, alpha, beta, best, depth, current_hash);
+				set_current_state({r, alpha, beta, best, depth, current_hash});
 				return r;
 			}
 		}
 	}
 
 	if (player) {
-		for (int d : Direction::all) {
+		for (int8_t d : Direction::all) {
 			if (move_possible(d)) {
 				change = player_changes(d);
 
 				make_move(d);
-				x = alpha_beta_with_nega_scout(max(r, alpha), beta, player ^ change, depth - 1);
+				x = nega_scout(max(r, alpha), beta, player ^ change, depth - 1);
 				undo_move(d);
 
 				if (x >= beta) {
-					transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-						Data(x, alpha, beta, d, depth, current_hash);
+					set_current_state({x, alpha, beta, d, depth, current_hash});
 					return x;
 				}
 
@@ -159,17 +158,16 @@ int AlphaBeta::alpha_beta_with_nega_scout(int alpha, int beta, bool player, int 
 			}
 		}
 	} else {
-		for (int d : Direction::all) {
+		for (int8_t d : Direction::all) {
 			if (move_possible(d)) {
 				change = player_changes(d);
 
 				make_move(d);
-				x = alpha_beta_with_nega_scout(alpha, min(r, beta), player ^ change, depth - 1);
+				x = nega_scout(alpha, min(r, beta), player ^ change, depth - 1);
 				undo_move(d);
 
 				if (x <= alpha) {
-					transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-						Data(x, alpha, beta, d, depth, current_hash);
+					set_current_state({x, alpha, beta, d, depth, current_hash});
 					return x;
 				}
 
@@ -181,28 +179,27 @@ int AlphaBeta::alpha_beta_with_nega_scout(int alpha, int beta, bool player, int 
 		}
 	}
 
-	transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-		Data(r, alpha, beta, best, depth, current_hash);
+	set_current_state({r, alpha, beta, best, depth, current_hash});
 	return r;
 }
 
-int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
+int8_t AlphaBeta::alpha_beta_recursive(int8_t alpha, int8_t beta, bool player, int8_t depth)
 {
 	if (current_field.y == 0 || current_field.y == height - 1 || depth == 0)
 		return field_value(current_field);
 
-	Data data = transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE];
-	if (data.hash == current_hash && data.precision >= depth - 1 &&
+	Data data = get_current_state();
+	if (data.precision >= depth - 1 &&
 	    ((data.value <= data.beta && data.value >= data.alpha) ||
-	     (data.value > data.beta  && data.beta >= beta) ||
+	     (data.value > data.beta  && data.beta  >= beta) ||
 	     (data.value < data.alpha && data.alpha <= alpha)))
 		return data.value;
 
-	int x;
+	int8_t x;
 	bool change;
 
-	int r    = (int) !player * INF;
-	int best = data.best_move;
+	int8_t r    = (int8_t) !player * INF;
+	int8_t best = data.best_move;
 
 	if (best >= 0 && move_possible(best)) {
 		change = player_changes(best);
@@ -213,21 +210,19 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 
 		if (player) {
 			if (r >= beta) {
-				transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-					Data(r, alpha, beta, best, depth, current_hash);
+				set_current_state({r, alpha, beta, best, depth, current_hash});
 				return r;
 			}
 		} else {
 			if (r <= alpha) {
-				transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-					Data(r, alpha, beta, best, depth, current_hash);
+				set_current_state({r, alpha, beta, best, depth, current_hash});
 				return r;
 			}
 		}
 	}
 
 	if (player) {
-		for (int d : Direction::all) {
+		for (int8_t d : Direction::all) {
 			if (move_possible(d)) {
 				change = player_changes(d);
 
@@ -236,8 +231,7 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 				undo_move(d);
 
 				if (x >= beta) {
-					transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-						Data(x, alpha, beta, d, depth, current_hash);
+					set_current_state({x, alpha, beta, d, depth, current_hash});
 					return x;
 				}
 
@@ -248,7 +242,7 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 			}
 		}
 	} else {
-		for (int d : Direction::all) {
+		for (int8_t d : Direction::all) {
 			if (move_possible(d)) {
 				change = player_changes(d);
 
@@ -257,8 +251,7 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 				undo_move(d);
 
 				if (x <= alpha) {
-					transposition_table[current_hash % TRANSPOSITION_TABLE_SIZE] =
-						Data(x, alpha, beta, d, depth, current_hash);
+					set_current_state({x, alpha, beta, d, depth, current_hash});
 					return x;
 				}
 
@@ -275,22 +268,17 @@ int AlphaBeta::alpha_beta_recursive(int alpha, int beta, bool player, int depth)
 	return r;
 }
 
-int AlphaBeta::any_move()
+int8_t AlphaBeta::any_move()
 {
-	int d = current_hash % 8;
+	int8_t d = current_hash % 8;
 
-	for (int i = d; i < 8; ++i)
+	for (int8_t i = d; i < 8; ++i)
 		if (move_possible(i))
 			return i;
-	for (int i = 0; i < d; ++i)
+	for (int8_t i = 0; i < d; ++i)
 		if (move_possible(i))
 			return i;
 	return -1;
-}
-
-Hash AlphaBeta::get_hash_zobrist(int d, const Point &p)
-{
-	return hash_board[(p.y * width + p.x) * 8 + d];
 }
 
 void AlphaBeta::clear_table()

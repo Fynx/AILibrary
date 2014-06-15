@@ -66,12 +66,12 @@ inline bool State::is_full() const
 
 struct Point {
 	Point() {};
-	Point(int x, int y) : x(x), y(y) {}
+	Point(int8_t x, int8_t y) : x(x), y(y) {}
 
 	inline Point & operator+=(Point p);
 	inline Point operator+(Point p);
 
-	int x, y;
+	int8_t x, y;
 };
 
 Point & Point::operator+=(Point p)
@@ -91,16 +91,16 @@ Point Point::operator+(Point p)
  */
 
 namespace Direction {
-	const int RR = 0;
-	const int UR = 1;
-	const int UU = 2;
-	const int UL = 3;
-	const int LL = 4;
-	const int DL = 5;
-	const int DD = 6;
-	const int DR = 7;
+	const int8_t RR = 0;
+	const int8_t UR = 1;
+	const int8_t UU = 2;
+	const int8_t UL = 3;
+	const int8_t LL = 4;
+	const int8_t DL = 5;
+	const int8_t DD = 6;
+	const int8_t DR = 7;
 
-	const std::array <int, 8> all {
+	const std::array <int8_t, 8> all {
 		RR,
 		UR,
 		UU,
@@ -120,7 +120,7 @@ namespace Direction {
 	const int DD_M = State::get_mask(DD);
 	const int DR_M = State::get_mask(DR);
 
-	const std::unordered_map <int, Point> change {
+	const std::unordered_map <int8_t, Point> change {
 		{RR, { 1,  0}},
 		{UR, { 1,  1}},
 		{UU, { 0,  1}},
@@ -131,7 +131,7 @@ namespace Direction {
 		{DR, { 1, -1}},
 	};
 
-	inline int reversed(int dir)
+	inline int8_t reversed(int8_t dir)
 	{
 		return (dir + 4) % 8;
 	}
